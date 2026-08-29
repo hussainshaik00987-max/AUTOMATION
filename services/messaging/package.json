@@ -1,0 +1,28 @@
+{
+  "name": "proline-whatsapp-sidecar",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "WhatsApp follow-up sidecar for the India cold-calling agent \u2014 sends each lead their demo site link after the call.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "logout": "node -e \"import('node:fs').then(f=>{f.rmSync('auth',{recursive:true,force:true});console.log('auth cleared \u2014 restart and scan the QR again')})\"",
+    "peek": "node peek.js",
+    "preview": "node preview.js",
+    "rehearse": "node test-flow.js",
+    "shots": "node shotgen.js",
+    "shots:upload": "node shotgen.js --upload"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc14",
+    "link-preview-js": "^3.0.5",
+    "pino": "^9.5.0",
+    "puppeteer-core": "^25.8.0",
+    "qrcode-terminal": "^0.12.0",
+    "sharp": "^0.34.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

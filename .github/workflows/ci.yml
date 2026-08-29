@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  voice:
+    name: voice · go
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/voice
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: services/voice/go.sum
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt needed on:"; echo "$unformatted"; exit 1
+          fi
+      - run: go vet ./...
+      - run: go build ./...
+      - run: go test -race ./...
+
+  python:
+    name: discovery + studio · python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Byte-compile every module
+        run: python -m compileall -q services/discovery services/studio tools
+      - name: Lint
+        run: |
+          pip install --quiet ruff
+          ruff check services/discovery services/studio tools --select E9,F63,F7,F82
+
+  messaging:
+    name: messaging · node
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/messaging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Syntax check
+        run: for f in *.js; do node --check "$f"; done
+
+  secrets:
+    name: no secrets or real contact data
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan for credentials
+        run: |
+          if grep -rInE '(sk-[A-Za-z0-9_-]{20,}|AIza[A-Za-z0-9_-]{20,}|sk_[a-f0-9]{32,}|ghp_[A-Za-z0-9]{30,})' \
+               --exclude-dir=.git --exclude-dir=.github .; then
+            echo "::error::credential-shaped string committed"; exit 1
+          fi
+      - name: Scan for real-looking contact data
+        run: |
+          # Fixtures must use reserved example ranges only.
+          if grep -rInE '\+?91[ -]?[6-9][0-9]{4}[ -]?[0-9]{5}' --exclude-dir=.git . \
+             | grep -vE '9876543210|9999999999|9000000|98765 43210|90000 00|1126543210|8123456789'; then
+            echo "::error::non-reserved phone number committed"; exit 1
+          fi

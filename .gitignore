@@ -1,0 +1,74 @@
+# ── Secrets ──────────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+token.json
+auth/                 # WhatsApp linked-device session
+jobs.json             # messaging sidecar job state
+
+# ── Real prospect data — never commit ────────────────────────────────────────
+# The pipeline operates on live business contact records. Only the synthetic
+# fixtures under services/*/data/ and testdata/ belong in version control.
+*.db
+*.db-shm
+*.db-wal
+*.db.bak
+exports/
+leads.csv
+all_leads.csv
+top_leads.csv
+run*.csv
+results*.csv
+pending_emails.csv
+failed_links.csv
+campaignlogs/
+recordings/
+*.mp3
+*.wav
+!services/voice/testdata/**/*.wav
+
+# ── Build output ─────────────────────────────────────────────────────────────
+out/
+dist/
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+voice-agent
+voice-agent-linux
+outbound
+node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.playwright/
+.shotcache/
+shots/
+opener_preview/
+
+# ── Logs & scratch ───────────────────────────────────────────────────────────
+logs/
+*.log
+*.jsonl
+.monitor_*
+pids.txt
+opdump.json
+tmp/
+.DS_Store
+Thumbs.db
+
+# ── Editor ───────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+
+# ── Generated during a run ───────────────────────────────────────────────────
+services/studio/sites/catalogue.html
+services/studio/*/out/
+services/studio/*/assets/photos/
+services/voice/data/*.local.csv

@@ -1,0 +1,9 @@
+[Unit]
+Description=top20 TX campaign schedule (Mon 8:00am Central)
+
+[Timer]
+OnCalendar=2026-06-22 13:00:00 UTC
+Persistent=false
+
+[Install]
+WantedBy=timers.target

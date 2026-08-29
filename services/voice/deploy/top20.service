@@ -1,0 +1,19 @@
+[Unit]
+Description=top20 TX campaign (one-shot batch dialer)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/voice-agent
+Environment=PROSPECTS_FILE=top20_tx.csv
+Environment=RESULTS_FILE=results_top20.csv
+Environment=CALL_TIMEOUT=150s
+ExecStart=/opt/voice-agent/voice-agent
+# Batch dialer: a clean finish is expected; never auto-restart (would re-dial).
+Restart=no
+User=root
+LimitNOFILE=65536
+Nice=-5
+KillSignal=SIGINT
+TimeoutStopSec=15

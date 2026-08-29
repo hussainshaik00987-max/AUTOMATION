@@ -1,0 +1,20 @@
+[Unit]
+Description=India wedding-leads campaign — business hours, once
+
+[Timer]
+# 06:00 UTC = 11:30 IST.
+#
+# Chosen against what the first run actually showed: it went out at 20:30 IST,
+# and three of six connections were answering machines. Indian small businesses
+# open around 10:00-11:00 and break for lunch after 13:00, so 11:30 is inside the
+# widest window where an owner is at the shop, awake, and not eating. The run
+# takes roughly half an hour, so it lands entirely before lunch.
+OnCalendar=2026-08-21 06:00:00 UTC
+# One-shot. If the box is asleep or down at 06:00 this must NOT fire late in the
+# evening the way the first run did — a missed slot is a rescheduled run, not a
+# run at the wrong hour.
+Persistent=false
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

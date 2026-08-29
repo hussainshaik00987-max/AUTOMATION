@@ -1,0 +1,30 @@
+[Unit]
+Description=India wedding-leads campaign — one bounded, fully-recorded run
+After=network-online.target whatsapp-sidecar.service
+Wants=network-online.target
+# The sidecar owns every promise this campaign makes. Without it linked, each
+# "haan bhej do" on a call is a link that silently never arrives — the agent
+# refuses to dial in that case, and run_campaign.sh checks before it even starts.
+Requires=whatsapp-sidecar.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/voice-agent
+# leads file · stop after N answered · run tag
+ExecStart=/opt/voice-agent/run_campaign.sh wedding_run2.csv 35 live2
+User=root
+LimitNOFILE=65536
+Nice=-5
+KillSignal=SIGINT
+# A campaign interrupted mid-call still has to write its result row, dispatch
+# what it promised, and close the run log. SIGINT gives it that; SIGKILL after
+# 90s is the backstop.
+TimeoutStopSec=90
+# Batch dialer: finishing the lead list IS success. An automatic restart would
+# re-dial the whole list from the top, to people who have just been called.
+Restart=no
+StandardOutput=append:/var/log/voice-campaign.log
+StandardError=append:/var/log/voice-campaign.log
+
+[Install]
+WantedBy=multi-user.target
