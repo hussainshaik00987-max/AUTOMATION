@@ -7,6 +7,7 @@ It finds businesses that need what you sell, builds each one a personalised proo
 phones the owner in their own language, and keeps the promise it made on the call —
 end to end, unattended.
 
+[![CI](https://github.com/krishnasharma2212/coldwire/actions/workflows/ci.yml/badge.svg)](https://github.com/krishnasharma2212/coldwire/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](services/voice)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](services/discovery)
 [![Node](https://img.shields.io/badge/Node-20+-339933?logo=nodedotjs&logoColor=white)](services/messaging)
