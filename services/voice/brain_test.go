@@ -253,8 +253,9 @@ func TestRequestResponseIsSkippedWhileOneIsStreaming(t *testing.T) {
 	srv := f.client(t)
 	<-f.got
 
+	er := readBrain(t, b)
 	_ = srv.WriteJSON(map[string]any{"type": "response.created"})
-	if ev, _ := readWithTimeout(t, b); ev.Kind != BrainNothing {
+	if ev, _ := er.next(t); ev.Kind != BrainNothing {
 		// response.created is swallowed; drain until the state has been applied.
 		_ = ev
 	}
@@ -276,22 +277,46 @@ func TestRequestResponseIsSkippedWhileOneIsStreaming(t *testing.T) {
 	}
 }
 
-// readWithTimeout runs ReadEvent with a deadline so a test can advance the
-// connection's state without hanging when no event is due.
-func readWithTimeout(t *testing.T, b *BrainConn) (BrainEvent, error) {
+type brainRead struct {
+	ev  BrainEvent
+	err error
+}
+
+// brainReader owns the ONE reader a gorilla connection permits, for the whole
+// life of the test. The obvious alternative — start a goroutine per read and
+// abandon it when the deadline passes — leaves that goroutine parked inside
+// ReadMessage, so the next read is a SECOND concurrent reader on the same
+// connection. The race detector catches it; nothing else does.
+type brainReader struct {
+	ch <-chan brainRead
+}
+
+func readBrain(t *testing.T, b *BrainConn) *brainReader {
 	t.Helper()
-	type res struct {
-		ev  BrainEvent
-		err error
-	}
-	ch := make(chan res, 1)
+	ch := make(chan brainRead, 32)
 	go func() {
-		ev, err := b.ReadEvent()
-		ch <- res{ev, err}
+		defer close(ch)
+		for {
+			ev, err := b.ReadEvent()
+			ch <- brainRead{ev, err}
+			if err != nil {
+				return // the connection is down; Close() in t.Cleanup gets us here
+			}
+		}
 	}()
+	return &brainReader{ch: ch}
+}
+
+// next returns the next event, or BrainNothing once a deadline passes, so a
+// test can advance the connection's state without hanging when none is due.
+func (r *brainReader) next(t *testing.T) (BrainEvent, error) {
+	t.Helper()
 	select {
-	case r := <-ch:
-		return r.ev, r.err
+	case got, ok := <-r.ch:
+		if !ok {
+			return BrainEvent{Kind: BrainNothing}, nil
+		}
+		return got.ev, got.err
 	case <-time.After(500 * time.Millisecond):
 		return BrainEvent{Kind: BrainNothing}, nil
 	}
@@ -309,8 +334,9 @@ func TestNoSecondResponseWhileTheServerIsAboutToMakeOne(t *testing.T) {
 	<-f.got // session.update
 
 	// The prospect stops talking; the server commits and will answer on its own.
+	er := readBrain(t, b)
 	_ = srv.WriteJSON(map[string]any{"type": "input_audio_buffer.committed"})
-	readWithTimeout(t, b) // let the client observe it
+	er.next(t) // let the client observe it
 
 	// The silence supervisor fires in exactly this window.
 	if err := b.SendText("[system cue: are they still there?]"); err != nil {
@@ -338,12 +364,13 @@ func TestResponseRequestWorksAgainAfterTheTurnCompletes(t *testing.T) {
 	srv := f.client(t)
 	<-f.got
 
+	er := readBrain(t, b)
 	_ = srv.WriteJSON(map[string]any{"type": "input_audio_buffer.committed"})
-	readWithTimeout(t, b)
+	er.next(t)
 	_ = srv.WriteJSON(map[string]any{"type": "response.created"})
-	readWithTimeout(t, b)
+	er.next(t)
 	_ = srv.WriteJSON(map[string]any{"type": "response.done", "response": map[string]any{"id": "r1"}})
-	readWithTimeout(t, b)
+	er.next(t)
 
 	if err := b.SendText("[system cue]"); err != nil {
 		t.Fatalf("SendText: %v", err)
