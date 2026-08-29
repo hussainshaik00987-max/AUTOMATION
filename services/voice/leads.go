@@ -13,19 +13,19 @@ import (
 // Prospect is one row of the scraped input CSV. Phone is required; everything
 // else is research the agent may reference on the call (only if present).
 type Prospect struct {
-	Name               string // business listing name (e.g. "Meridian Studios")
-	Phone              string // E.164 — the public/main line
-	DirectNumber       string // E.164 — owner/direct line that bypasses the answering service (empty if none)
-	OwnerName          string // sanitized owner FIRST name (empty if unknown/unreliable)
-	LineType           string // "wireless" | "landline" | "voip" | "" — see IsMobile
-	Rating             string // e.g. "4.8"
-	TotalReviews       string // e.g. "340"
-	Website            string // url or empty
-	Address            string // metadata only — not spoken on the call
-	City               string
-	State              string // e.g. "TX" — carried for timezone/segmentation
-	Timezone           string // IANA name, if the scraper resolved one; overrides every other guess
-	Category           string // e.g. "Wedding photographer", "Bakery and Cake Shop"
+	Name         string // business listing name (e.g. "Meridian Studios")
+	Phone        string // E.164 — the public/main line
+	DirectNumber string // E.164 — owner/direct line that bypasses the answering service (empty if none)
+	OwnerName    string // sanitized owner FIRST name (empty if unknown/unreliable)
+	LineType     string // "wireless" | "landline" | "voip" | "" — see IsMobile
+	Rating       string // e.g. "4.8"
+	TotalReviews string // e.g. "340"
+	Website      string // url or empty
+	Address      string // metadata only — not spoken on the call
+	City         string
+	State        string // e.g. "TX" — carried for timezone/segmentation
+	Timezone     string // IANA name, if the scraper resolved one; overrides every other guess
+	Category     string // e.g. "Wedding photographer", "Bakery and Cake Shop"
 
 	// India campaign fields (top_leads.csv). All optional — a missing column just
 	// means that piece of research isn't available for this lead.
@@ -219,19 +219,19 @@ func ReadProspects(path string) ([]Prospect, error) {
 		}
 
 		p := Prospect{
-			Name:               name,
-			Phone:              phone,
-			DirectNumber:       direct,
-			OwnerName:          owner,
-			LineType:           normalizeLineType(get(row, lineTypeCol)),
-			Rating:             get(row, ratingCol),
-			TotalReviews:       trimFloat(get(row, reviewsCol)),
-			Website:            get(row, websiteCol),
-			Address:            get(row, addressCol),
-			City:               get(row, cityCol),
-			State:              get(row, stateCol),
-			Timezone:           strings.TrimSpace(get(row, tzCol)),
-			Category:           get(row, categoryCol),
+			Name:         name,
+			Phone:        phone,
+			DirectNumber: direct,
+			OwnerName:    owner,
+			LineType:     normalizeLineType(get(row, lineTypeCol)),
+			Rating:       get(row, ratingCol),
+			TotalReviews: trimFloat(get(row, reviewsCol)),
+			Website:      get(row, websiteCol),
+			Address:      get(row, addressCol),
+			City:         get(row, cityCol),
+			State:        get(row, stateCol),
+			Timezone:     strings.TrimSpace(get(row, tzCol)),
+			Category:     get(row, categoryCol),
 
 			DemoURL:         get(row, demoCol),
 			Vertical:        get(row, verticalCol),

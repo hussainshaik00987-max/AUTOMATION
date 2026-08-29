@@ -162,11 +162,11 @@ func TestToolCallsArriveAsOneBatchWhenTheResponseCloses(t *testing.T) {
 	}
 	send(map[string]any{"type": "response.created"})
 	send(map[string]any{
-		"type": "response.function_call_arguments.done",
+		"type":    "response.function_call_arguments.done",
 		"call_id": "c1", "name": "capture_lead", "arguments": `{"name":"Mike"}`,
 	})
 	send(map[string]any{
-		"type": "response.function_call_arguments.done",
+		"type":    "response.function_call_arguments.done",
 		"call_id": "c2", "name": "book_meeting", "arguments": `{"attendee_email":"m@x.co"}`,
 	})
 

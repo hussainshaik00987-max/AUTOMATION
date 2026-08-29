@@ -138,11 +138,11 @@ func (r *RunLog) Manifest(cfg Config, leads int, maxAnswered int, preflight map[
 		ResultsCSV: cfg.ResultsFile,
 
 		FromNumber:  cfg.FromNumber,
-		BrainModel: cfg.OpenAIRealtimeModel,
-		VoiceModel: cfg.ElevenModel,
-		VoiceID:    cfg.ElevenVoiceID,
-		Reasoning:  cfg.ReasoningEffort,
-		VAD:        cfg.VADMode,
+		BrainModel:  cfg.OpenAIRealtimeModel,
+		VoiceModel:  cfg.ElevenModel,
+		VoiceID:     cfg.ElevenVoiceID,
+		Reasoning:   cfg.ReasoningEffort,
+		VAD:         cfg.VADMode,
 		MaxAnswered: maxAnswered,
 
 		Tuning: map[string]any{
@@ -313,7 +313,6 @@ func (r *RunLog) WhatsApp(s WhatsAppSample) {
 	s.At = time.Now().UTC().Format(time.RFC3339)
 	r.write("whatsapp", s)
 }
-
 
 // ---------------------------------------------------------------------------
 // End-of-run summary

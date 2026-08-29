@@ -122,4 +122,3 @@ func TestReportSurvivesATruncatedFile(t *testing.T) {
 	}
 	_ = rep.Render(true) // must not panic on a partial run
 }
-

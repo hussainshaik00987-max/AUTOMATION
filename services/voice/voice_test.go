@@ -301,10 +301,10 @@ func TestMulawSecondsMatchesTheWire(t *testing.T) {
 // a well-meaning tweak cannot quietly admit a seven-second monologue.
 func TestOpenerCeilingRejectsTheLinesThatWereMeasuredTooLong(t *testing.T) {
 	measured := map[string]float64{
-		"Hi there — is this X?":                        2.09,
+		"Hi there — is this X?":                          2.09,
 		"Hi! I saw your 214 Google reviews — is this X?": 3.62,
-		"Hi! AI assistant here. I saw your 214 …":       4.32,
-		"…on there, that's a lot — is this X?":          4.69,
+		"Hi! AI assistant here. I saw your 214 …":        4.32,
+		"…on there, that's a lot — is this X?":           4.69,
 	}
 	for line, secs := range measured {
 		if secs > openerMaxSeconds {
