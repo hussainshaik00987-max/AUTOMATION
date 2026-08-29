@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,6 +18,23 @@ type fakeBrain struct {
 	srv  *httptest.Server
 	conn chan *websocket.Conn
 	got  chan map[string]any
+
+	// A gorilla connection supports exactly one concurrent writer, and the
+	// upgrade handler's own reply goroutine is already one of them. Without
+	// this, a test that scripts events races the session.updated reply.
+	wmu sync.Mutex
+}
+
+// fakeConn is the server side of the socket with writes serialised.
+type fakeConn struct {
+	c  *websocket.Conn
+	mu *sync.Mutex
+}
+
+func (f *fakeConn) WriteJSON(v any) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.c.WriteJSON(v)
 }
 
 func newFakeBrain(t *testing.T) *fakeBrain {
@@ -37,10 +55,12 @@ func newFakeBrain(t *testing.T) *fakeBrain {
 				}
 				f.got <- m
 				if m["type"] == "session.update" {
+					f.wmu.Lock()
 					_ = c.WriteJSON(map[string]any{
 						"type":    "session.updated",
 						"session": map[string]any{"output_modalities": []string{"text"}},
 					})
+					f.wmu.Unlock()
 				}
 			}
 		}()
@@ -51,11 +71,11 @@ func newFakeBrain(t *testing.T) *fakeBrain {
 	return f
 }
 
-func (f *fakeBrain) client(t *testing.T) *websocket.Conn {
+func (f *fakeBrain) client(t *testing.T) *fakeConn {
 	t.Helper()
 	select {
 	case c := <-f.conn:
-		return c
+		return &fakeConn{c: c, mu: &f.wmu}
 	case <-time.After(3 * time.Second):
 		t.Fatal("fake Realtime server never saw a connection")
 		return nil
