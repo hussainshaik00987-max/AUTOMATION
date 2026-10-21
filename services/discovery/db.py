@@ -103,6 +103,23 @@ CREATE TABLE IF NOT EXISTS runlog (
     msg     TEXT,
     detail  TEXT
 );
+
+CREATE TABLE IF NOT EXISTS lead_reviews (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    lead_id            INTEGER NOT NULL UNIQUE,
+    status             TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'review_later')),
+    notification_state TEXT NOT NULL DEFAULT 'unnotified' CHECK (notification_state IN ('unnotified', 'sent', 'failed')),
+    notified_at        INTEGER,
+    decision_ts        INTEGER,
+    decision_by        TEXT,
+    history            TEXT DEFAULT '[]',
+    created_at         INTEGER NOT NULL,
+    updated_at         INTEGER NOT NULL,
+    FOREIGN KEY(lead_id) REFERENCES leads(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_reviews_lead_id ON lead_reviews(lead_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_status  ON lead_reviews(status);
+CREATE INDEX IF NOT EXISTS idx_reviews_notif   ON lead_reviews(notification_state);
 """
 
 
@@ -261,3 +278,269 @@ def stats(conn):
         "tasks_total":  q("SELECT COUNT(*) FROM tasks"),
         "tasks_error":  q("SELECT COUNT(*) FROM tasks WHERE status='error'"),
     }
+
+
+REVIEW_STATUSES = ("pending", "approved", "rejected", "review_later")
+NOTIFICATION_STATES = ("unnotified", "sent", "failed")
+
+
+def init_review(conn, lead_id):
+    """Ensure a review record exists for the given lead_id.
+
+    Returns the review Row/dict, or None if the lead does not exist.
+    Safe against duplicates: if a review record exists, returns it unmodified.
+    """
+    lead = conn.execute("SELECT id FROM leads WHERE id=?", (lead_id,)).fetchone()
+    if not lead:
+        return None
+
+    existing = conn.execute("SELECT * FROM lead_reviews WHERE lead_id=?", (lead_id,)).fetchone()
+    if existing:
+        return existing
+
+    now = int(time.time())
+    history = json.dumps([{"status": "pending", "ts": now, "actor": "system"}])
+    try:
+        conn.execute(
+            "INSERT INTO lead_reviews(lead_id, status, notification_state, history, created_at, updated_at) "
+            "VALUES(?, 'pending', 'unnotified', ?, ?, ?)",
+            (lead_id, history, now, now)
+        )
+        conn.commit()
+    except sqlite3.IntegrityError:
+        pass
+    return conn.execute("SELECT * FROM lead_reviews WHERE lead_id=?", (lead_id,)).fetchone()
+
+
+def get_review(conn, lead_id):
+    """Get the review record for a lead_id, or None if not found."""
+    return conn.execute("SELECT * FROM lead_reviews WHERE lead_id=?", (lead_id,)).fetchone()
+
+
+def set_review_status(conn, lead_id, status, actor="owner", note=None):
+    """Update review status for a lead.
+
+    Validates status against REVIEW_STATUSES.
+    Appends the transition to the history log with timestamp and actor.
+    Returns the updated review Row/dict, or None if the lead does not exist.
+    Raises ValueError if status is invalid.
+    """
+    if status not in REVIEW_STATUSES:
+        raise ValueError(f"Invalid review status: '{status}'. Allowed: {REVIEW_STATUSES}")
+
+    lead = conn.execute("SELECT id FROM leads WHERE id=?", (lead_id,)).fetchone()
+    if not lead:
+        return None
+
+    review = get_review(conn, lead_id)
+    if not review:
+        init_review(conn, lead_id)
+        review = get_review(conn, lead_id)
+
+    now = int(time.time())
+    try:
+        hist = json.loads(review["history"]) if review["history"] else []
+    except Exception:
+        hist = []
+
+    entry = {"status": status, "ts": now, "actor": actor}
+    if note:
+        entry["note"] = note
+    hist.append(entry)
+
+    conn.execute(
+        "UPDATE lead_reviews SET status=?, decision_ts=?, updated_at=?, history=? WHERE lead_id=?",
+        (status, now, now, json.dumps(hist), lead_id)
+    )
+    conn.commit()
+    return get_review(conn, lead_id)
+
+
+def set_notification_state(conn, lead_id, state):
+    """Update notification state for a lead review.
+
+    Validates state against NOTIFICATION_STATES ('unnotified', 'sent', 'failed').
+    Sets notified_at timestamp if state is 'sent'.
+    Returns updated review Row/dict, or None if lead does not exist.
+    Raises ValueError if state is invalid.
+    """
+    if state not in NOTIFICATION_STATES:
+        raise ValueError(f"Invalid notification state: '{state}'. Allowed: {NOTIFICATION_STATES}")
+
+    lead = conn.execute("SELECT id FROM leads WHERE id=?", (lead_id,)).fetchone()
+    if not lead:
+        return None
+
+    review = get_review(conn, lead_id)
+    if not review:
+        init_review(conn, lead_id)
+
+    now = int(time.time())
+    notified_at = now if state == "sent" else None
+    conn.execute(
+        "UPDATE lead_reviews SET notification_state=?, notified_at=COALESCE(?, notified_at), updated_at=? WHERE lead_id=?",
+        (state, notified_at, now, lead_id)
+    )
+    conn.commit()
+    return get_review(conn, lead_id)
+
+
+def get_pending_reviews(conn, unnotified_only=False):
+    """Retrieve pending lead reviews with associated lead details."""
+    sql = """
+        SELECT r.*,
+               l.name, l.search_city, l.area, l.address, l.phone, l.whatsapp, l.email,
+               l.website, l.instagram, l.facebook, l.score, l.score_breakdown,
+               l.pitch_angle, l.rating, l.reviews, l.primary_cat, l.vertical,
+               l.site_status, l.site_responsive, l.automation_score, l.automation_reason
+        FROM lead_reviews r
+        JOIN leads l ON r.lead_id = l.id
+        WHERE r.status = 'pending'
+    """
+    if unnotified_only:
+        sql += " AND r.notification_state = 'unnotified'"
+    sql += " ORDER BY r.created_at ASC"
+    return conn.execute(sql).fetchall()
+
+
+def get_failed_reviews(conn):
+    """Retrieve pending reviews whose notification send failed."""
+    sql = """
+        SELECT r.*,
+               l.name, l.search_city, l.area, l.address, l.phone, l.whatsapp, l.email,
+               l.website, l.instagram, l.facebook, l.score, l.score_breakdown,
+               l.pitch_angle, l.rating, l.reviews, l.primary_cat, l.vertical,
+               l.site_status, l.site_responsive, l.automation_score, l.automation_reason
+        FROM lead_reviews r
+        JOIN leads l ON r.lead_id = l.id
+        WHERE r.status = 'pending' AND r.notification_state = 'failed'
+        ORDER BY r.created_at ASC
+    """
+    return conn.execute(sql).fetchall()
+
+
+def reset_failed_notifications(conn):
+    """Reset failed notifications back to 'unnotified' so they can be retried.
+
+    Returns the number of rows updated.
+    """
+    cur = conn.execute(
+        "UPDATE lead_reviews SET notification_state='unnotified', updated_at=? "
+        "WHERE status='pending' AND notification_state='failed'",
+        (int(time.time()),)
+    )
+    conn.commit()
+    return cur.rowcount
+
+
+def init_unreviewed_leads(conn):
+    """Initialize review records for any existing leads in leads table that lack one.
+
+    Returns the count of newly initialized review records.
+    """
+    rows = conn.execute("SELECT id FROM leads WHERE id NOT IN (SELECT lead_id FROM lead_reviews)").fetchall()
+    count = 0
+    for r in rows:
+        init_review(conn, r["id"])
+        count += 1
+    return count
+
+
+CSV_HEADER_MAP = {
+    "Business Name": "name",
+    "Score": "score",
+    "Segment": "segment",
+    "Vertical": "vertical",
+    "Phone": "phone",
+    "WhatsApp Link": "whatsapp",
+    "Instagram": "instagram",
+    "IG Followers": "ig_followers",
+    "IG Posts": "ig_posts",
+    "Facebook": "facebook",
+    "Other Links": "other_links",
+    "Email": "email",
+    "IG Email": "ig_email",
+    "Website": "website",
+    "Site HTTP": "site_status",
+    "Mobile Friendly": "site_responsive",
+    "Rating": "rating",
+    "Reviews": "reviews",
+    "Category": "primary_cat",
+    "Area": "area",
+    "City": "search_city",
+    "City Tier": "city_tier",
+    "City/State": "city_state",
+    "Address": "address",
+    "IG Bio": "ig_bio",
+    "IG Link": "ig_external_url",
+    "IG Bio Links": "ig_bio_links",
+    "Description": "description",
+    "Pitch Angle": "pitch_angle",
+    "Google Place ID": "place_id",
+    "Lat": "lat",
+    "Lng": "lng",
+    "Score Breakdown": "score_breakdown",
+    "Site Platform": "site_platform",
+    "Price": "price_hint",
+    "WMG Listing": "wmg_membership",
+    "Recent Bookings": "wmg_bookings",
+    "Source": "source",
+    "WedMeGood Profile": "wmg_profile_url",
+    "Automation Score": "automation_score",
+    "Automation Angle": "automation_reason",
+}
+
+
+def import_leads_from_csv(conn, csv_path):
+    """Import leads from a CSV file into the database and initialize review records.
+
+    Handles both exported CSVs (with pretty column headers) and internal-keyed CSVs.
+    Returns (imported_count, new_reviews_count).
+    """
+    import csv
+    from pathlib import Path
+
+    path = Path(csv_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"CSV file not found: {csv_path}")
+
+    imported = 0
+    with open(path, "r", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        for raw_row in reader:
+            row = {}
+            for k, v in raw_row.items():
+                if k is None:
+                    continue
+                db_key = CSV_HEADER_MAP.get(k.strip(), k.strip())
+                row[db_key] = v.strip() if isinstance(v, str) else v
+
+            # Clean empty strings
+            for col in list(row.keys()):
+                if row[col] == "":
+                    row[col] = None
+
+            # Convert numeric fields if possible
+            for num_col in ("score", "reviews", "site_status", "automation_score", "city_tier"):
+                if row.get(num_col) is not None:
+                    try:
+                        row[num_col] = int(row[num_col])
+                    except (ValueError, TypeError):
+                        pass
+
+            for float_col in ("rating", "lat", "lng"):
+                if row.get(float_col) is not None:
+                    try:
+                        row[float_col] = float(row[float_col])
+                    except (ValueError, TypeError):
+                        pass
+
+            if not row.get("name"):
+                continue
+
+            upsert_lead(conn, row)
+            imported += 1
+
+    conn.commit()
+    new_reviews = init_unreviewed_leads(conn)
+    return imported, new_reviews
