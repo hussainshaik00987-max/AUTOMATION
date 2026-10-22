@@ -1,0 +1,10 @@
+services/
+tools/
+docs/
+.github/
+.venv/
+*.py
+*.sh
+*.ps1
+.env
+.env.example
