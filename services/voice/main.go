@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	_ "embed"
+	"embed"
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -20,8 +21,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
-//go:embed web/index.html
-var embeddedIndexBytes []byte
+//go:embed all:web
+var webFS embed.FS
 
 var (
 	onceWeb sync.Once
@@ -31,21 +32,13 @@ var (
 func webHandler() http.Handler {
 	onceWeb.Do(func() {
 		muxWeb = http.NewServeMux()
-		var staticDir string
-		candidates := []string{"web", "../..", "../../live", ".", "public"}
-		for _, c := range candidates {
-			if fi, err := os.Stat(filepath.Join(c, "index.html")); err == nil && !fi.IsDir() {
-				staticDir = c
-				break
-			}
-		}
-		if staticDir != "" {
-			muxWeb.Handle("/", http.FileServer(http.Dir(staticDir)))
+		if sub, err := fs.Sub(webFS, "web"); err == nil {
+			muxWeb.Handle("/", http.FileServer(http.FS(sub)))
 		} else {
 			muxWeb.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "text/html; charset=utf-8")
 				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write(embeddedIndexBytes)
+				_, _ = w.Write([]byte("<!DOCTYPE html><html><body><h1>Meridian Studios</h1></body></html>"))
 			})
 		}
 		muxWeb.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
