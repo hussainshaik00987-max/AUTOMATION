@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"flag"
 	"fmt"
@@ -12,11 +13,54 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/joho/godotenv"
 )
+
+//go:embed web/index.html
+var embeddedIndexBytes []byte
+
+var (
+	onceWeb sync.Once
+	muxWeb  *http.ServeMux
+)
+
+func webHandler() http.Handler {
+	onceWeb.Do(func() {
+		muxWeb = http.NewServeMux()
+		var staticDir string
+		candidates := []string{"web", "../..", "../../live", ".", "public"}
+		for _, c := range candidates {
+			if fi, err := os.Stat(filepath.Join(c, "index.html")); err == nil && !fi.IsDir() {
+				staticDir = c
+				break
+			}
+		}
+		if staticDir != "" {
+			muxWeb.Handle("/", http.FileServer(http.Dir(staticDir)))
+		} else {
+			muxWeb.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(embeddedIndexBytes)
+			})
+		}
+		muxWeb.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"ok","mode":"web_preview"}`))
+		})
+	})
+	return muxWeb
+}
+
+// Handler exports standard Vercel serverless entrypoint for Go runtime.
+func Handler(w http.ResponseWriter, r *http.Request) {
+	webHandler().ServeHTTP(w, r)
+}
 
 type Config struct {
 	Port               string
@@ -486,8 +530,27 @@ func main() {
 		missing = append(missing, "PUBLIC_HOST")
 	}
 	if len(missing) > 0 {
-		slog.Error("missing required env vars", "vars", missing)
-		os.Exit(1)
+		slog.Warn("missing required voice credentials, serving web preview instead", "vars", missing)
+		port := os.Getenv("PORT")
+		if port == "" {
+			port = cfg.Port
+		}
+		if port == "" {
+			port = "3000"
+		}
+		if !strings.HasPrefix(port, ":") {
+			port = ":" + port
+		}
+		slog.Info("starting web preview server", "port", port)
+		server := &http.Server{
+			Addr:              port,
+			Handler:           webHandler(),
+			ReadHeaderTimeout: 5 * time.Second,
+		}
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("web preview server failed", "error", err)
+		}
+		return
 	}
 
 	prospects, err := ReadProspects(cfg.ProspectsFile)
