@@ -32,7 +32,6 @@ recordings/
 
 # ── Build output ─────────────────────────────────────────────────────────────
 out/
-dist/
 build/
 *.exe
 *.dll
