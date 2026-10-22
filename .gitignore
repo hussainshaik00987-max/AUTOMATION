@@ -31,8 +31,6 @@ recordings/
 !services/voice/testdata/**/*.wav
 
 # ── Build output ─────────────────────────────────────────────────────────────
-out/
-build/
 *.exe
 *.dll
 *.so

@@ -1,11 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const dist = path.resolve('dist');
-if (fs.existsSync(dist)) {
-  fs.rmSync(dist, { recursive: true, force: true });
-}
-fs.mkdirSync(dist, { recursive: true });
+const targetDirs = ['dist', 'build', 'out', 'public'];
 
 function copyRecursive(src, dest) {
   const stat = fs.statSync(src);
@@ -20,9 +16,16 @@ function copyRecursive(src, dest) {
 }
 
 const items = ['index.html', 'catalogue.html', 'robots.txt', 'sitemap.xml', 'assets', 'scenes', 'sites'];
-for (const item of items) {
-  if (fs.existsSync(item)) {
-    copyRecursive(item, path.join(dist, item));
+
+for (const dirName of targetDirs) {
+  const dirPath = path.resolve(dirName);
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+  for (const item of items) {
+    if (fs.existsSync(item)) {
+      copyRecursive(item, path.join(dirPath, item));
+    }
   }
 }
-console.log('Static site built into dist successfully!');
+console.log('All static directories (dist, build, out, public) synced successfully!');
