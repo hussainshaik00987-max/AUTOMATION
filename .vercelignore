@@ -4,7 +4,13 @@ docs/
 .github/
 .venv/
 *.py
+*.go
+*.mod
+*.sum
 *.sh
 *.ps1
 .env
 .env.example
+build.js
+package.json
+package-lock.json
