@@ -189,8 +189,8 @@ class TestTelegramBot(unittest.TestCase):
             "primary_cat": "Fashion Boutique",
             "search_city": "Kadapa",
             "area": "Nagarajupalle",
-            "phone": "+919440123456",
-            "whatsapp": "https://wa.me/919440123456",
+            "phone": "+919876543210",
+            "whatsapp": "https://wa.me/919876543210",
             "email": "contact@kadapajewels.example",
             "website": "https://instagram.com/kadapajewels",
             "instagram": "https://instagram.com/kadapajewels",
@@ -207,7 +207,7 @@ class TestTelegramBot(unittest.TestCase):
         self.assertIn("Kadapa Jewels & Boutiques", formatted)
         self.assertIn("Fashion Boutique", formatted)
         self.assertIn("Nagarajupalle, Kadapa", formatted)
-        self.assertIn("+919440123456", formatted)
+        self.assertIn("+919876543210", formatted)
         self.assertIn("8,500 followers", formatted)
         self.assertIn("Lead Score:* 120", formatted)
         self.assertIn("Recommended Service:", formatted)

@@ -393,7 +393,7 @@ func trimFloat(s string) string {
 var defaultRegion = "US"
 
 // normalizePhone converts a human-formatted phone number into E.164. It accepts
-// what the scrapers emit — "+91 69012 40190", "09876543210", "9876543210",
+// what the scrapers emit — "+91 98765 43210", "09876543210", "9876543210",
 // "(832) 328-1010" — and resolves bare numbers using defaultRegion.
 func normalizePhone(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
